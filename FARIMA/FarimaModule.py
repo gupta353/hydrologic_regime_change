@@ -14,6 +14,8 @@ from  statsmodels.tsa.arima.model import ARIMA
 import math
 from scipy import signal
 import scipy.special as sc
+from statsmodels.stats.diagnostic import acorr_ljungbox
+from statsmodels.tsa.stattools import acf
 
 # identify the seasonal component from the daily data using average of the streamflows corresponding to a day
 def seasonalCompAvg(strm_data):
@@ -168,7 +170,7 @@ def diffOp(strm_data,d,p):
             b_k.append(math.gamma(-d+k)/math.gamma(-d)/math.gamma(k+1))
         else:
             b_k.append((np.exp(sc.gammaln(-d+k) - sc.gammaln(k+1)))/math.gamma(-d))
-    b_k = np.array(b_k)
+    b_k = np.array(b_k, dtype = object)
 
     # apply filter
     y = []
@@ -196,7 +198,7 @@ def invdiffOp(strm_data,d,p):
     for k in range(0,p + 1):
         #b_k.append(math.gamma(d+k)/math.gamma(d)/math.gamma(k+1))
         b_k.append((np.exp(sc.gammaln(d+k) - sc.gammaln(k+1)))/math.gamma(d))
-    b_k = np.array(b_k)
+    b_k = np.array(b_k, dtype = object)
 
     # apply filter
     y = []
@@ -220,17 +222,51 @@ def ARMAorderDetermine(y,p_max,q_max):
     AIC_vals = []
     for p in range(0,p_max+1):
         for q in range(0,q_max+1):
-            model = ARIMA(y,order = (p,0,q))
-            model_fit = model.fit()
+            print(p,q)
+            model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
+            model.initialize_approximate_diffuse()
+            model_fit = model.fit(method_kwargs={'maxiter': 1000})
+            #print('**************************************************************')
+            #print(model_fit.mle_retvals)
+            #print('**************************************************************')
             AIC_vals.append([p,q,model_fit.aic])
     AIC_vals = np.array(AIC_vals)
-
+    
     # order corresponding to minimum AIC
     AIC_min = AIC_vals[:,2].min()
     ind = np.nonzero(AIC_vals[:,2] == AIC_min)
     p = int(AIC_vals[ind,0])
     q = int(AIC_vals[ind,1])
-
+    
+    if (p == p_max or q==q_max):
+        AIC_vals = AIC_vals.tolist()
+        for p in range(0,11):
+            for q in range(6,11):
+                print(p,q)
+                model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
+                model.initialize_approximate_diffuse()
+                model_fit = model.fit(method_kwargs={'maxiter': 1000})
+                AIC_vals.append([p,q,model_fit.aic])
+                #print('**************************************************************')
+                #print(model_fit.mle_retvals)
+                #print('**************************************************************')
+        for p in range(6,11):
+            for q in range(0,6):
+                print(p,q) 
+                model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
+                model.initialize_approximate_diffuse()
+                model_fit = model.fit(method_kwargs={'maxiter': 1000})
+                AIC_vals.append([p,q,model_fit.aic])
+                #print('**************************************************************')
+                #print(model_fit.mle_retvals)
+                #print('**************************************************************')
+    AIC_vals = np.array(AIC_vals)
+    
+    AIC_min = AIC_vals[:,2].min()
+    ind = np.nonzero(AIC_vals[:,2] == AIC_min)
+    p = int(AIC_vals[ind,0])
+    q = int(AIC_vals[ind,1])
+    
     return p,q
 
 # computation of periodogram of time-series
@@ -420,6 +456,7 @@ def jacLw(p,q,theta,f,one_sided,I):
 
 #   Hessian of the Whittle's approximate likelihood w.r.t. its parameters
 def hessLw(p,q,theta,f,one_sided,I):
+
     # inputs: p = order of autoregressive polynomial
     #         q = order of moving average polynomial
     #         theta = parameters of the model (arparams, maparams, sigma_eps, d)
@@ -458,7 +495,7 @@ def hessLw(p,q,theta,f,one_sided,I):
     for k in krange:
         mdterm4 = (exp_neg_iota_omega**k)*np.conj(ma_pol) + np.conj(exp_neg_iota_omega**k)*ma_pol
         partial2_Lw_shik_d = -2*np.sum(term1*term2*mdterm3*mdterm4)
-        partial2_Lw_shi_d.append(partial2_Lw_shik_d)
+        partial2_Lw_shi_d.append(partial2_Lw_shik_d.real)
 
     # mixed second partial of d and phi_k(s)
     krange = range(1,p+1)
@@ -468,7 +505,7 @@ def hessLw(p,q,theta,f,one_sided,I):
     for k in krange:
         adterm4 = (exp_neg_iota_omega**k)*np.conj(ar_pol) + np.conj(exp_neg_iota_omega**k)*ar_pol
         partial2_Lw_phik_d = -2*np.sum(term1*term2*adterm3*adterm4)
-        partial2_Lw_phi_d.append(partial2_Lw_phik_d)
+        partial2_Lw_phi_d.append(partial2_Lw_phik_d.real)
 
     # mixed second partial of d and sigma_eps
     partial2_Lw_sigmaeps_d = -4*np.sum(term1*term2/sigma_eps)
@@ -488,7 +525,7 @@ def hessLw(p,q,theta,f,one_sided,I):
             mmterm6 = (abs(ma_pol))**(-2)
             mmterm7 = exp_neg_iota_omega**(l-k) + np.conj(exp_neg_iota_omega**(l-k))
             partial2_shik_shil = np.sum(mmterm1*mmterm2*mmterm3*mmterm4) + np.sum(mmterm5*mmterm6*mmterm7)
-            partial2_Lw_shi_shi[k-1,l-1] = partial2_shik_shil
+            partial2_Lw_shi_shi[k-1,l-1] = partial2_shik_shil.real
 
     # mixed second partial derivatives of phi_k(s) and shi_l(s) 
     krange = range(1,q+1)   # MA coefficients 
@@ -501,7 +538,7 @@ def hessLw(p,q,theta,f,one_sided,I):
             amterm4 = (exp_neg_iota_omega**k)*np.conj(ma_pol) + np.conj(exp_neg_iota_omega**k)*ma_pol  # MA term
             amterm5 = (exp_neg_iota_omega**l)*np.conj(ar_pol) + np.conj(exp_neg_iota_omega**l)*ar_pol  # AR term
             partial2_Lw_phil_shik = np.sum(term1*amterm2*amterm3*amterm4*amterm5)
-            partial2_Lw_shi_phi[k-1,l-1] = partial2_Lw_phil_shik
+            partial2_Lw_shi_phi[k-1,l-1] = partial2_Lw_phil_shik.real
 
 
     # mixed second partial derivatives of shi_k(s) and sigma_epsilon
@@ -512,7 +549,7 @@ def hessLw(p,q,theta,f,one_sided,I):
     for k in krange:
         smterm4 = (exp_neg_iota_omega**k)*np.conj(ma_pol) + np.conj(exp_neg_iota_omega**k)*ma_pol
         partial2_sigmaeps_shik = 2*np.sum(term1*smterm2*smterm3*smterm4)
-        partial2_Lw_sigmaeps_shi.append(partial2_sigmaeps_shik)
+        partial2_Lw_sigmaeps_shi.append(partial2_sigmaeps_shik.real)
 
     # mixed second partial derivatives of phi_k(s) and phi_l(s)
     krange = range(1,p+1)
@@ -528,7 +565,7 @@ def hessLw(p,q,theta,f,one_sided,I):
             aaterm3 = (exp_neg_iota_omega**l)*np.conj(ar_pol) + np.conj(exp_neg_iota_omega**l)*ar_pol
             aaterm6 = exp_neg_iota_omega**(l-k) + np.conj(exp_neg_iota_omega**(l-k))
             partial2_Lw_phik_phil = np.sum(aaterm1*aaterm2*aaterm3) - np.sum(aaterm4*aaterm5*aaterm6)
-            partial2_Lw_phi_phi[k-1,l-1] = partial2_Lw_phik_phil
+            partial2_Lw_phi_phi[k-1,l-1] = partial2_Lw_phik_phil.real
 
 
     # mixed second partial derivatives of LW w.r.t. phi_k(s) and sigma_eps
@@ -538,7 +575,7 @@ def hessLw(p,q,theta,f,one_sided,I):
     partial2_Lw_sigmaeps_phi = np.zeros((p,1))
     for k in krange:
         saterm4 = (exp_neg_iota_omega**k)*np.conj(ar_pol) + np.conj(exp_neg_iota_omega**k)*ar_pol
-        partial2_Lw_sigmaeps_phi[k-1] = 2*np.sum(term1*saterm2*saterm3*saterm4)
+        partial2_Lw_sigmaeps_phi[k-1] = (2*np.sum(term1*saterm2*saterm3*saterm4)).real
 
     # second partial derivative of Lw w.r.t. sigma_eps
     partial2_Lw_sigmaeps2 = -2*len(f)/sigma_eps**2 + (6/sigma_eps**2)*np.sum(term1)
@@ -562,3 +599,100 @@ def hessLw(p,q,theta,f,one_sided,I):
     Hessian_mat = np.concatenate((Hessian_mat1,Hessian_mat2,Hessian_mat3,Hessian_mat4),axis = 1)
 
     return np.real(Hessian_mat)
+
+# iterative d method for parameter estimation of FARIMA model
+def ParEstIterd(data,p,q,one_sided,pt,f,I):
+    
+    dvals = np.arange(0,0.51,0.01)
+    AIC_vals = []
+    for d in dvals:
+        if (d != 0):
+            y = diffOp(data,d,pt)
+        else:
+            y = data
+
+        model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
+        model.initialize_approximate_diffuse()
+        model_fit = model.fit(method_kwargs={'maxiter': 1000})
+        #print('**************************************************************')
+        #print(model_fit.mle_retvals)
+        #print('**************************************************************')
+        AIC_vals.append([d,model_fit.aic])
+
+    # find the optimal d (= dopt)value corresponding to minimum AIC and estimate parameters corresponding to the optimal d value  
+    AIC_vals = np.array(AIC_vals)
+    minind = np.nonzero(AIC_vals[:,1] == AIC_vals[:,1].min())
+    dopt = AIC_vals[minind[0],0]
+    if (dopt != 0):
+        y = diffOp(data,dopt,pt)
+    else:
+        y = data
+    model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
+    model.initialize_approximate_diffuse()
+    model_fit = model.fit(method_kwargs={'maxiter': 1000})
+    #print('**************************************************************')
+    #print(model_fit.mle_retvals)
+    #print('**************************************************************')
+
+    # extract parameters
+    if (p != 0):
+        arparams_est = model_fit.arparams
+    else:
+        arparams_est = np.array([0]*p)
+    
+    if (q != 0):
+        maparams_est = model_fit.maparams
+    else:
+        maparams_est = np.array([0]*q)
+
+    sigma_est = (model_fit.params[-1])**0.5
+    theta = np.r_[arparams_est,maparams_est,dopt[0],sigma_est]
+
+    residuals = model_fit.resid
+
+    # estimate 95% confidence interval
+    hess = hessLw(p,q,theta,f,one_sided,I)
+    Sigma2 = np.linalg.inv(hess)
+    stds = np.diag(Sigma2)**0.5
+    conf_hessian = np.concatenate(((theta - 1.96*stds).reshape(1,-1).T, (theta + 1.96*stds).reshape(1,-1).T),axis = 1)
+    conf_module = np.array(model_fit.conf_int(0.05))
+
+    # Bound the confidence intervals of 'd' between 0.0 and 0.5 
+    conf_hessian[-2,0] = np.max([conf_hessian[-2,0],0])
+    conf_hessian[-2,1] = np.min([conf_hessian[-2,1],0.5])
+    
+
+    return theta, conf_hessian, residuals, conf_module
+
+# Ljung-Box test for autocorrelation of white noise (residuals)
+def LjungBoxFarima(residuals):
+    # inputs: residuals = residuals for each window (an array_like: each column contains residuals for one window) 
+    # outputs: Ljugn-Box test results
+    #          (lbvalue: Ljugn-Box test statistic)
+    #          (pvalue: p value)
+    
+    lbvalues = []
+    pvalues = []
+    for ind in range(0,residuals.shape[1]):
+        lbvalue, pvalue = acorr_ljungbox(residuals[:,ind], lags = 20)
+        lbvalues.append(lbvalue)
+        pvalues.append(pvalue)
+
+    return lbvalues, pvalues
+
+# computation of autocorrelation of residuals
+def autoCorrFarima(residuals):
+    # inputs: residuals = residuals for each window (an array_like: each column contains residuals for one window)
+
+    acfs = []
+    confints = []
+    qstats = []
+    pvalues = []
+    for ind in range(0,residuals.shape[1]):
+        acf_vals, confint, qstat, pvalue = acf(residuals[:,ind], nlags = 100, qstat = True, fft = True, alpha = 0.05)
+        acfs.append(acf_vals)
+        confints.append(confint)
+        qstats.append(qstat)
+        pvalues.append(pvalue)
+
+    return acfs, confints, qstats, pvalues
