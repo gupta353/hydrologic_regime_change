@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import multiprocessing as mp
 import time
 import output_Files
+import plotFARIMA
 
 direc = 'D:/Research/non_staitionarity/data/CAMELS_GLEAMS_combined_data'
  
@@ -23,8 +24,8 @@ m_list = m_list.tolist()
 wlen = 3650     # length of the window (in days)
 mstep = 365*3    # time-step by which a window in moved (in days)
 
-p_max = 2      # maixmum order of autoregressive polynomial
-q_max = 2     # maximum order of moving average polynomial
+p_max = 5      # maixmum order of autoregressive polynomial
+q_max = 5     # maximum order of moving average polynomial
 
 fs = 1        # sampling frequency for periodogram computation
 
@@ -32,6 +33,10 @@ fs = 1        # sampling frequency for periodogram computation
 #for fname in [listFile[0]]:
 
 def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
+
+    station_id = fname.split('_')[0]
+    save_dir = 'D:/Research/non_staitionarity/codes/results/FARIMA_results/' + station_id
+    os.mkdir(save_dir)
 
     print(fname)
     #read streamflow data
@@ -55,21 +60,27 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
     ind2 = [i for i in range(0,len(strm)) if (strm[i][0] == end_datenum)]
 
     strm = np.array(strm)
-    strm_data = strm[ind1[0]:ind2[0],1] 
+    strm_data = strm[ind1[0]:ind2[0]+1,1] 
+    datenums = strm[ind1[0]:ind2[0]+1,0]
 
     # identify seasonal component using lowess
     frac_val = 0.02
     it_val = 2
     seasonal_comp = FarimaModule.seasonalCompLowess(strm_data,frac_val,it_val)
+    seasonal_comp_daily_avg = FarimaModule.seasonalCompAvg(strm_data) # seasonal component computed by daily averaging method
 
     # deseasonalize streamflows
     deseason_strm = FarimaModule.deseasonalize(strm_data,seasonal_comp)
-
     N = deseason_strm.shape[0] # number of days at which data is available
+
+    # plot and save data
+    plotFARIMA.plotStrmData(strm_data,seasonal_comp,seasonal_comp_daily_avg,deseason_strm,save_dir)
+    output_Files.strmDataText(datenums,strm_data,seasonal_comp,deseason_strm,save_dir)
 
     params_windows = []
     order_windows = []
     conf_auto = []     # confidence interval estimated by statsmodles built-in method
+    residuals = []
     for ind in range(0,N-wlen+1,mstep):
         print(ind)
 
@@ -80,7 +91,7 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
         Hvar = result[0]
 
         # calculate Hurst exponent using R/S method
-        t_steps = range(0,3650,365)
+        t_steps = range(0,wlen,365)
         result = FarimaModule.HexpoRS(data,m_list,t_steps)
         H_R_by_S = result[0]
 
@@ -106,15 +117,16 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
         f = f[1:]
         I = I[1:]
         print('Iterative d optimization begins')
-        params, conf, conf_module = FarimaModule.ParEstIterd(data,p,q,one_sided,pt,f,I,d)
+        params, conf, resid, conf_module = FarimaModule.ParEstIterd(data,p,q,one_sided,pt,f,I)
         params_comb = np.concatenate((params.reshape(1,-1).T,conf),axis  = 1)
         params_windows.append(params_comb)
         conf_auto.append(conf_module)
         order_windows.append([p,q])
-
+        residuals.append(resid)
+    
     # extract parameter values
     params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, max_length_ar, max_length_ma = output_Files.rearrangeParams(order_windows, params_windows,p_max,q_max)
-
+    residuals = np.array(residuals).T
     #######################################################################################################################################
     # define name of the parameters
     param_names_ar = ['AR' + str(i) for i in range(1,max_length_ar+1)]
@@ -123,79 +135,18 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
     
     ########################################################################################################################################
     # save estimated coefficients to a textfile
-    station_id = fname.split('_')[0]
-    save_dir = 'D:/Research/non_staitionarity/codes/results/FARIMA_results/' + station_id
-    os.mkdir(save_dir)
-    output_Files.outText(params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig,
+    output_Files.outText(params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, residuals,
 station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma)
 
     # write the confidence interval obatined by the default method to a textfile
     output_Files.confAutoText(conf_auto,order_windows,max_length_ar, max_length_ma,param_names_ar,param_names_ma,station_id,save_dir) 
    
+   # compute residual autocorrelations
+    acfs, acf_confints, qstats, pvalues = FarimaModule.autoCorrFarima(residuals)
+    
     ########################################################################################################################################
     # plot estimated coefficients
-    numPlots = max_length_ar + max_length_ma + 2
-    rows = int((numPlots)**0.5)
-    cols = int(np.ceil((max_length_ar + max_length_ma + 2)/rows))
-    dict = {'fontname' : 'arial', 'size' : 10}
-
-    # plot AR coefficients
-    count = 0
-    for ind in range(0,params_ar.shape[1]):
-
-        count = count + 1
-        param_tmp = params_ar[:,ind]
-        param_025_tmp = params_025_ar[:,ind]
-        param_975_tmp = params_975_ar[:,ind]
-        plt.subplot(rows,cols,count)
-        plt.plot(param_tmp, color = 'blue',linewidth = 1.5)
-        plt.plot(param_025_tmp, color = 'blue', linestyle = '--',linewidth = 1.5)
-        plt.plot(param_975_tmp,  color = 'blue',linestyle = '--',linewidth = 1.5)
-        plt.title(param_names[count-1], y = 0.05, x = 0.8)
-
-    # plot MA coefficients
-    for ind in range(0,params_ma.shape[1]):
-
-        count = count + 1
-        param_tmp = params_ma[:,ind]
-        param_025_tmp = params_025_ma[:,ind]
-        param_975_tmp = params_975_ma[:,ind]
-        plt.subplot(rows,cols,count)
-        plt.plot(param_tmp,color = 'blue',linewidth = 1.5)
-        plt.plot(param_025_tmp,color = 'blue', linestyle = '--',linewidth = 1.5)
-        plt.plot(param_975_tmp,color = 'blue', linestyle = '--',linewidth = 1.5)
-        plt.title(param_names[count-1], y = 0.05, x = 0.8)    
-
-    # plot d values
-    count = count + 1
-    param_tmp = params_d_sig[:,0]
-    param_025_tmp = params_025_d_sig[:,0]
-    param_975_tmp = params_975_d_sig[:,0]
-    plt.subplot(rows,cols,count)
-    plt.plot(param_tmp,color = 'blue',linewidth = 1.5)
-    plt.plot(param_025_tmp,color = 'blue', linestyle = '--',linewidth = 1.5)
-    plt.plot(param_975_tmp,color = 'blue', linestyle = '--',linewidth = 1.5)
-    plt.title(param_names[count-1], y = 0.05, x = 0.8)
-
-    # plot sigma values
-    count = count + 1
-    param_tmp = params_d_sig[:,1]
-    param_025_tmp = params_025_d_sig[:,1]
-    param_975_tmp = params_975_d_sig[:,1]
-    plt.subplot(rows,cols,count)
-    plt.plot(param_tmp,color = 'blue',linewidth = 1.5)
-    plt.plot(param_025_tmp,color = 'blue', linestyle = '--',linewidth = 1.5)
-    plt.plot(param_975_tmp,color = 'blue', linestyle = '--',linewidth = 1.5)
-    plt.title(param_names[count-1], y = 0.05, x = 0.8)  
-
-    ctitle = fname.split('_')[0]
-    plt.suptitle(ctitle)
-
-    # save plot
-    sname = ctitle + '.png'
-    filename = save_dir + sname
-    plt.savefig(filename)
-    plt.close()
+    plotFARIMA.plotParEst(save_dir,station_id)
 
     return None
 
@@ -208,16 +159,16 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma)
 """ if __name__ == '__main__':
     # start 4 worker processes
     inputs = [(fname,p_max,q_max,m_list,wlen,mstep,fs) for fname in listFile]
-    inputs = inputs[0:5]
-    with mp.Pool(processes=5) as pool:
+    inputs = inputs[0:10]
+    with mp.Pool(processes=10) as pool:
       tic = time.time()
       results = pool.starmap(implement,inputs)
       toc = time.time()
     print(toc-tic)
     pool.close() """
 
-#fname = '02053800_GLEAMS_CAMELS_data.txt'
-fname = listFile[0]
+fname = '01022500_GLEAMS_CAMELS_data.txt'
+#fname = listFile[0]
 tic = time.time()
 implement(fname,p_max,q_max,m_list,wlen,mstep,fs)
 toc = time.time()
