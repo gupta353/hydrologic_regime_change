@@ -20,7 +20,7 @@ def plotParEst(save_dir,station_id):
     fid.close()
     header_mean = data_mean[0].split()
     header_mean[-1] = r'$\sigma$'
-    header_mean[-2] = r'$d$'
+    header_mean[-2] = r'$H$'
     del data_mean[0]
     for rind in range(0,len(data_mean)):
         data_tmp = data_mean[rind].split()
@@ -53,6 +53,11 @@ def plotParEst(save_dir,station_id):
         data_975[rind] = np.array(data_tmp, dtype = float)
     data_975 = np.array(data_975)
 
+    # add 0.5 to d values to convert them to H values
+    data_mean[:,-2] = data_mean[:,-2] + 0.5
+    data_025[:,-2] = data_025[:,-2] + 0.5
+    data_975[:,-2] = data_975[:,-2] + 0.5
+
     # plot estimated coefficients
     numPlots = len(header_mean)
     rows = int((numPlots)**0.5)
@@ -84,7 +89,6 @@ def plotParEst(save_dir,station_id):
         param_025_tmp = data_025[:,ind]
         param_975_tmp = data_975[:,ind]
 
-        #plt.subplot(rows,cols,count)
         ax[rcount,ccount].set_axis_on()
         ax[rcount,ccount].plot(windows, param_tmp, color = 'tab:blue',linewidth = 1)
         ax[rcount,ccount].plot(windows, param_025_tmp, color = 'tab:blue', linestyle = '--',linewidth = 1)
@@ -170,6 +174,8 @@ def plotStrmData(strm,seasonal,seasonal_daily_avg,deseason,save_dir):
     filename = save_dir + '/' + sname
     plt.savefig(filename, dpi = 300)
 
+    plt.close()
+
     return None
 
 # plot residual data
@@ -214,8 +220,78 @@ def plotResidual(resid,save_dir,sname):
     filename = save_dir + '/' + sname + '.png'
     plt.savefig(filename, dpi = 300)
 
+    plt.close()
+
     return None
 
+# plot scale vs aggregated variances (used in the computations of Hurst exponent)
+def plotVarScale(log_m,log_variances,H,slope,intercept,save_dir,sname):
+    # inputs: log_m         = Logarithm of scales (base 10)
+    #         log_variances = Logarithm of aggregated variances (base 10)
+    #         H             = Hurst Exponent
+    #         save_dir      = direcotry where the plot will be saved
+    # outputs: a plot
+
+    plt.rcParams['mathtext.default'] = 'regular'
+    plt.rc('xtick', labelsize = 10)
+    plt.rc('ytick', labelsize = 10)
+    plt.rc('font',**{'family':'Arial'})
+
+    # construct regressionn line data
+    log_m_lines = np.concatenate(([0],log_m))
+    yreg = intercept + slope*log_m_lines
+    y_wihoutpersistence = intercept + (-1)*log_m_lines
+
+    plt.scatter(log_m,log_variances)
+    plt.plot(log_m_lines,yreg, color = 'Black',linewidth = 0.8)
+    plt.plot(log_m_lines,y_wihoutpersistence, color = 'Red',linewidth = 0.8)
+    plt.xlabel(r'$log_{10}(\itm)$', fontsize = 10, fontname = 'Arial')
+    plt.ylabel(r'$log_{10}(\it\sigma_{m}^2)$',fontsize = 10, fontname = 'Arial')
+    plt.legend(['Regression line','H = 0.5 line','Observations'], frameon = False, loc = 'upper right')
+    plt.title('H = ' + str(round(H,2)))
+
+    # save the plot
+    sname_tmp = sname + '.svg'
+    filename = save_dir + '/' + sname_tmp
+    plt.savefig(filename, dpi = 300)
+
+    sname_tmp = sname + '.png'
+    filename = save_dir + '/' + sname_tmp
+    plt.savefig(filename, dpi = 300)
+
+    plt.close()
+
+    return None
+
+# plot periodogram data
+def plotPeriodogram(f,I,save_dir,sname):
+    # inputs: f = frequencies at which periodogram is to be plotted
+    #         I = periodogram values at frequencies in f
+    # outputs: plot 
+
+    plt.rcParams['mathtext.default'] = 'regular'
+    plt.rc('xtick', labelsize = 10)
+    plt.rc('ytick', labelsize = 10)
+    plt.rc('font',**{'family':'Arial'})
+
+    plt.loglog(f,I)
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power spectral density')
+    plt.title('Periodogram of\ndeseasonalized streamflows')
+
+    # save plot
+    sname_tmp = sname + '.svg'
+    filename = save_dir + '/' + sname_tmp
+    plt.savefig(filename, dpi = 300)
+
+    sname_tmp = sname + '.png' 
+    filename = save_dir + '/' + sname_tmp
+    print(filename)
+    plt.savefig(filename, dpi = 300)
+    
+    plt.close()
+
+    return None
 #plotParEst('D:/Research/non_staitionarity/codes/results/FARIMA_results/01055000','01055000')
 
 """ filename = 'D:/Research/non_staitionarity/codes/results/FARIMA_results/01022500/residuals.txt'
@@ -235,3 +311,5 @@ plotResidual(residuals[:,1],save_dir,'residuals_plot_1')
 
 acfs, confints, qstats, pvalues = FarimaModule.autoCorrFarima(residuals)
 output_Files.autocorrText(acfs, qstats, pvalues, save_dir) """
+
+#plotParEst('D:/Research/non_staitionarity/codes/results/FARIMA_results/01030500','01030500')
