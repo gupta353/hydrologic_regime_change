@@ -33,10 +33,9 @@ def seasonalCompLowess(strm_data,frac_val,it_val):
     #         it_val = number of lowess iterations
     # outputs: lowess_out = Averaged values obtained by lowess
 
-    # rearrange data accordig to days 
+    # rearrange data according to days 
     strm_day = np.array([])
     days = []
-    strm_avg = []
     for ind in range(0,365):
         strm_tmp = strm_data[range(ind,strm_data.shape[0],365)]
         strm_day = np.concatenate((strm_day,strm_tmp))
@@ -49,7 +48,6 @@ def seasonalCompLowess(strm_data,frac_val,it_val):
     xvals = np.array(range(1,366))
     days = days.astype('float64')
     xvals = xvals.astype('float64')
-    strm_day = strm_day
     lowess_out = lowess(strm_day, days, frac=frac_val, it=it_val, delta=0.0, xvals=xvals, is_sorted=False, missing='drop', return_sorted=True)
     
     return lowess_out
@@ -71,16 +69,16 @@ def deseasonalize(strm_data,lowess_out):
 
 # Calculate Hurst exponent using aggregated variance method
 def HexpoVarAggregate(strm_data,m_list):
-    # inputs: strm_data = data for which hurst exponent is to be computed (deseasonalized streamflows for daily scale data)
-    #         m_list = number of aggregation time-steps
+    # inputs: strm_data = data for which Hurst exponent is to be computed (deseasonalized streamflows for daily scale data)
+    #         m_list = number of aggregation time-steps which will be used for computation of Hurst exponent
     # outputs: H = Hurst exponent
-    #          intercept = interceot of the regression analysis
+    #          slope = slope of the fitted regression line
+    #          intercept = intercept of the regression analysis
     #          H_025 = lower limit of the 95% confidence interval
     #          H_975 = upper limit of 95% confidence interval
+    #          log_variances = logarithm (base 10) of variances at different aggregation scales
 
     variances = []
-   # m_list = range(1,250,2)
-   # strm_data = deseason_strm
     for m in m_list:
         avg = []
         for ind in range(0,strm_data.shape[0],m):
@@ -92,17 +90,14 @@ def HexpoVarAggregate(strm_data,m_list):
     log_m = np.log(m_list)/np.log(10)
 
     # regression analysis using scipy
-    log_m_reg = log_m[1:100]
-    log_variances_reg = log_variances[1:100]
+    log_m_reg = log_m[1:]
+    log_variances_reg = log_variances[1:]
     slope, intercept, r_value, p_value, std_err = stats.linregress(log_m_reg,log_variances_reg)
     H = 1 + slope/2
     H_025 = H - 0.98*std_err
     H_975 = H + 0.98*std_err
 
-    return H, intercept, H_025, H_975
-    
-
-    # Calculate Hurst exponent using rescaled range method
+    return H, slope, intercept, H_025, H_975, log_variances
 
 # Calculate Hurst exponent using R/S method
 def HexpoRS(strm_data,m_list,t_steps):
@@ -610,7 +605,6 @@ def ParEstIterd(data,p,q,one_sided,pt,f,I):
             y = diffOp(data,d,pt)
         else:
             y = data
-
         model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
         model.initialize_approximate_diffuse()
         model_fit = model.fit(method_kwargs={'maxiter': 1000})
@@ -647,6 +641,7 @@ def ParEstIterd(data,p,q,one_sided,pt,f,I):
 
     sigma_est = (model_fit.params[-1])**0.5
     theta = np.r_[arparams_est,maparams_est,dopt[0],sigma_est]
+    constant = model_fit.params[0]
 
     residuals = model_fit.resid
 
@@ -661,8 +656,7 @@ def ParEstIterd(data,p,q,one_sided,pt,f,I):
     conf_hessian[-2,0] = np.max([conf_hessian[-2,0],0])
     conf_hessian[-2,1] = np.min([conf_hessian[-2,1],0.5])
     
-
-    return theta, conf_hessian, residuals, conf_module
+    return theta, conf_hessian, residuals, conf_module, constant
 
 # Ljung-Box test for autocorrelation of white noise (residuals)
 def LjungBoxFarima(residuals):
