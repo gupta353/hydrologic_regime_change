@@ -88,7 +88,7 @@ def rearrangeParams(order_windows, params_windows,p_max,q_max):
     return params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, max_length_ar, max_length_ma
 
 # 
-def outText(params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, residuals,
+def outText(params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, residuals, constant_terms,
 station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma):
     # mean values of the parameters
     write_mean_data = np.concatenate((params_ar,params_ma,params_d_sig),axis = 1)
@@ -114,7 +114,7 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma):
         fid.write(formatspec %tuple(write_025_data[ind,:]))
     fid.close()
 
-    # 97..5th percentile of the parameters
+    # 97.5th percentile of the parameters
     write_975_data = np.concatenate((params_975_ar,params_975_ma,params_975_d_sig),axis = 1)
     sfname = station_id + '_coefficient_estimates_975.txt'
     filename = save_dir + '/' + sfname
@@ -143,6 +143,14 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma):
         fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n' %tmp)
     fid.close()
 
+    # write means of the constant terms
+    sfname = 'constant_terms.txt'
+    filename = save_dir + '/' + sfname
+    fid = open(filename,'w')
+    fid.write(header_string)
+    fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n' %tuple(constant_terms))
+    fid.close()
+
     return None
 
 # write the confidence intervals obtained by default statsmodel method to a textfile
@@ -155,11 +163,16 @@ def confAutoText(conf_auto,order_windows,max_length_ar, max_length_ma,param_name
     param_975_ar = []
     param_025_ma = []
     param_975_ma = []
+    constant_025 = []
+    constant_975 = []
     sig_025 = []
     sig_975 = []
     for oind in range(0,len(order_windows)):
         p = order_windows[oind][0]
         q = order_windows[oind][1]
+
+        constant_025.append(conf_auto[oind][0,0])
+        constant_975.append(conf_auto[oind][0,1])
 
         if (p != 0):
             param_025_ar.append(list(conf_auto[oind][1:p+1,0]))
@@ -196,28 +209,30 @@ def confAutoText(conf_auto,order_windows,max_length_ar, max_length_ma,param_name
     param_975_ma = np.array(param_975_ma)
     sig_025 = np.array(sig_025).reshape(1,-1).T
     sig_975 = np.array(sig_975).reshape(1,-1).T
+    constant_025 = np.array(constant_025).reshape(1,-1).T
+    constant_975 = np.array(constant_975).reshape(1,-1).T
 
     # write to a textfile
     # 2.5th percentile of the parameters
-    write_025_data = np.concatenate((param_025_ar,param_025_ma,sig_025),axis = 1)
+    write_025_data = np.concatenate((param_025_ar,param_025_ma,sig_025,constant_025),axis = 1)
     sfname = station_id + '_coefficient_estimates_025_default.txt'
     filename = save_dir + '/' + sfname
     fid = open(filename,'w')
-    header = '\t'.join(param_names_ar) + '\t' + '\t'.join(param_names_ma) + '\tsigma\n'
+    header = '\t'.join(param_names_ar) + '\t' + '\t'.join(param_names_ma) + '\tsigma' + '\tconstant\n'
     fid.write(header)
-    formatspec = '\t'.join(['%f']*max_length_ar) + '\t' + '\t'.join(['%f']*max_length_ma) + '\t%f\n'
+    formatspec = '\t'.join(['%f']*max_length_ar) + '\t' + '\t'.join(['%f']*max_length_ma) + '\t%f\t%f\n'
     for ind in range(0,write_025_data.shape[0]):
         fid.write(formatspec %tuple(write_025_data[ind,:]))
     fid.close()
 
     # 97.5th percentile of the parameters
-    write_975_data = np.concatenate((param_975_ar,param_975_ma,sig_975),axis = 1)
+    write_975_data = np.concatenate((param_975_ar,param_975_ma,sig_975,constant_975),axis = 1)
     sfname = station_id + '_coefficient_estimates_975_default.txt'
     filename = save_dir + '/' + sfname
     fid = open(filename,'w')
-    header = '\t'.join(param_names_ar) + '\t' + '\t'.join(param_names_ma) + '\tsigma\n'
+    header = '\t'.join(param_names_ar) + '\t' + '\t'.join(param_names_ma) + '\tsigma\tconstant\n'
     fid.write(header)
-    formatspec = '\t'.join(['%f']*max_length_ar) + '\t' + '\t'.join(['%f']*max_length_ma) + '\t%f\n'
+    formatspec = '\t'.join(['%f']*max_length_ar) + '\t' + '\t'.join(['%f']*max_length_ma) + '\t%f\t%f\n'
     for ind in range(0,write_975_data.shape[0]):
         fid.write(formatspec %tuple(write_975_data[ind,:]))
     fid.close()
