@@ -15,7 +15,7 @@ direc = 'D:/Research/non_staitionarity/data/CAMELS_GLEAMS_combined_data'
 listFile = os.listdir(direc + '/complete_watersheds')
 
 # define time block size for Hurst-exponent calculation as equally spaced values on log-scale
-log_m_list = np.concatenate(([0.7],np.arange(1,2.45,0.03)))
+log_m_list = np.concatenate(([0.7,1],np.arange(1.06,2.45,0.03)))
 m_list = 10**log_m_list
 m_list = m_list.astype(int)
 m_list = m_list.tolist()
@@ -81,14 +81,19 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
     order_windows = []
     conf_auto = []     # confidence interval estimated by statsmodles built-in method
     residuals = []
+    constant_terms = []
+    constant_term_conf = []
+    window = 0
     for ind in range(0,N-wlen+1,mstep):
         print(ind)
+        window = window + 1
 
         data = deseason_strm[ind:ind+wlen]
         
         # calculate Hurst exponent using Aggregated Variance method
         result = FarimaModule.HexpoVarAggregate(data,m_list)
         Hvar = result[0]
+        plotFARIMA.plotVarScale(log_m_list,result[5],Hvar,result[1],result[2],save_dir,'Hexpo_AggVar_' + str(window))
 
         # calculate Hurst exponent using R/S method
         t_steps = range(0,wlen,365)
@@ -99,7 +104,7 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
         H = (Hvar + H_R_by_S)/2 
         print(H)
 
-        # apply differencing operator
+        # apply differencing operator and determine model order
         d = H - 0.5
         pt = 100
         y = FarimaModule.diffOp(data,d,pt)         # y is supposed to be ARIMA(p,0,q)
@@ -110,19 +115,24 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
         print('Time taken to determine the model order :', toc-tic)
         p = order[0]
         q = order[1]
-
-        # estimate the parameters using iterative d method
+        
+        # compute periodogra of the deseasonalized streamflow data
         one_sided = True
         f, I = FarimaModule.periodogramAG(data,fs,one_sided)
         f = f[1:]
         I = I[1:]
+        plotFARIMA.plotPeriodogram(f,I,save_dir,'periodogram_' + str(window))
+
+        # estimate the parameters using iterative d method
         print('Iterative d optimization begins')
-        params, conf, resid, conf_module = FarimaModule.ParEstIterd(data,p,q,one_sided,pt,f,I)
+        params, conf, resid, conf_module, constant_term = FarimaModule.ParEstIterd(data,p,q,one_sided,pt,f,I)
         params_comb = np.concatenate((params.reshape(1,-1).T,conf),axis  = 1)
         params_windows.append(params_comb)
         conf_auto.append(conf_module)
         order_windows.append([p,q])
         residuals.append(resid)
+        constant_terms.append(constant_term)
+        constant_term_conf.append(conf_module[0,:])
     
     # extract parameter values
     params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, max_length_ar, max_length_ma = output_Files.rearrangeParams(order_windows, params_windows,p_max,q_max)
@@ -135,15 +145,19 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
     
     ########################################################################################################################################
     # save estimated coefficients to a textfile
-    output_Files.outText(params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, residuals,
+    output_Files.outText(params_ar, params_025_ar, params_975_ar, params_ma, params_025_ma, params_975_ma, params_d_sig, params_025_d_sig, params_975_d_sig, residuals, constant_terms,
 station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma)
 
     # write the confidence interval obatined by the default method to a textfile
     output_Files.confAutoText(conf_auto,order_windows,max_length_ar, max_length_ma,param_names_ar,param_names_ma,station_id,save_dir) 
    
-   # compute residual autocorrelations
+   # compute residual autocorrelations and plot residual data
     acfs, acf_confints, qstats, pvalues = FarimaModule.autoCorrFarima(residuals)
-    
+    output_Files.autocorrText(acfs,qstats,pvalues,save_dir)
+
+    # plots
+    for rpind in range(0,residuals.shape[1]):
+        plotFARIMA.plotResidual(residuals[:,rpind],save_dir,'residuals_plot_'+ str(rpind))
     ########################################################################################################################################
     # plot estimated coefficients
     plotFARIMA.plotParEst(save_dir,station_id)
@@ -159,7 +173,7 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma)
 """ if __name__ == '__main__':
     # start 4 worker processes
     inputs = [(fname,p_max,q_max,m_list,wlen,mstep,fs) for fname in listFile]
-    inputs = inputs[0:10]
+    inputs = inputs[0:50]
     with mp.Pool(processes=10) as pool:
       tic = time.time()
       results = pool.starmap(implement,inputs)
