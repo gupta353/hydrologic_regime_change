@@ -99,7 +99,7 @@ def plotParEst(save_dir,station_id):
         tmp2 = np.concatenate((param_975_tmp.reshape(1,-1).T,param_tmp.reshape(1,-1).T),axis=0)
         ymin = round(np.nanmin(tmp1),2)
         ymax = round(np.nanmax(tmp2),2)
-        yint = round((ymax - ymin)/4,2)
+        yint = round((ymax - ymin)/4,3)
         if (ymin-ymax !=0):
             ytick_labels = np.arange(ymin,ymax + yint,yint)
         else:
@@ -263,6 +263,37 @@ def plotVarScale(log_m,log_variances,H,slope,intercept,save_dir,sname):
 
     return None
 
+# plot R/S statistic against against m
+def plotR_by_S(log_m,log_Rrescaled,slope, intercept,save_dir,sname):
+    
+    plt.rcParams['mathtext.default'] = 'regular'
+    plt.rc('xtick', labelsize = 10)
+    plt.rc('ytick', labelsize = 10)
+    plt.rc('font',**{'family':'Arial'})
+
+    # construct regression line data
+    y = intercept + slope*log_m
+
+    plt.scatter(log_m,log_Rrescaled, s = 1)
+    plt.plot(log_m,y, linewidth = 1.5, color = 'Black')
+    plt.ylabel(r'$log_{10}(\itR/\itS)$')
+    plt.xlabel(r'$log_{10}(\itm)$')
+    plt.legend(['Regeression Line', 'Observations'], frameon = False, loc = 'upper left')
+    plt.title('H = ' + str(round(slope,2)))
+
+    # save plots
+    sname_tmp = sname + '.svg'
+    filename = save_dir + '/' + sname_tmp
+    plt.savefig(filename)
+
+    sname_tmp = sname + '.png'
+    filename = save_dir + '/' + sname_tmp
+    plt.savefig(filename)
+
+    plt.close()
+
+    return None
+
 # plot periodogram data
 def plotPeriodogram(f,I,save_dir,sname):
     # inputs: f = frequencies at which periodogram is to be plotted
@@ -286,7 +317,6 @@ def plotPeriodogram(f,I,save_dir,sname):
 
     sname_tmp = sname + '.png' 
     filename = save_dir + '/' + sname_tmp
-    print(filename)
     plt.savefig(filename, dpi = 300)
     
     plt.close()
