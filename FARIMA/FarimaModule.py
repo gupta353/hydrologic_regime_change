@@ -134,8 +134,8 @@ def HexpoRS(strm_data,m_list,t_steps):
     # regression analysis using scipy
     # prepare data
     
-    log_m_reg = log_m[5:90]
-    log_Rrescaled_reg = log_Rrescaled[5:90,:]
+    log_m_reg = log_m[1:]
+    log_Rrescaled_reg = log_Rrescaled[1:,:]
     log_m_reg = log_m_reg.reshape(-1,1)
     log_m_reg = np.tile(log_m_reg,(1,len(t_steps)))
     log_m_reg = log_m_reg.reshape(log_m_reg.shape[0]*log_m_reg.shape[1],1,order='C')
@@ -146,7 +146,7 @@ def HexpoRS(strm_data,m_list,t_steps):
     H_025 = H - 1.96*std_err
     H_975 = H + 1.96*std_err
     
-    return H, intercept, H_025, H_975
+    return H, intercept, H_025, H_975, log_m_reg, log_Rrescaled_reg
 
 # compute the time-series as result of applying differencing operator (1-B)^d
 def diffOp(strm_data,d,p):
@@ -220,7 +220,7 @@ def ARMAorderDetermine(y,p_max,q_max):
             print(p,q)
             model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
             model.initialize_approximate_diffuse()
-            model_fit = model.fit(method_kwargs={'maxiter': 1000})
+            model_fit = model.fit(method_kwargs={'maxiter': 2000})
             #print('**************************************************************')
             #print(model_fit.mle_retvals)
             #print('**************************************************************')
@@ -240,7 +240,7 @@ def ARMAorderDetermine(y,p_max,q_max):
                 print(p,q)
                 model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
                 model.initialize_approximate_diffuse()
-                model_fit = model.fit(method_kwargs={'maxiter': 1000})
+                model_fit = model.fit(method_kwargs={'maxiter': 2000})
                 AIC_vals.append([p,q,model_fit.aic])
                 #print('**************************************************************')
                 #print(model_fit.mle_retvals)
@@ -250,7 +250,7 @@ def ARMAorderDetermine(y,p_max,q_max):
                 print(p,q) 
                 model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
                 model.initialize_approximate_diffuse()
-                model_fit = model.fit(method_kwargs={'maxiter': 1000})
+                model_fit = model.fit(method_kwargs={'maxiter': 2000})
                 AIC_vals.append([p,q,model_fit.aic])
                 #print('**************************************************************')
                 #print(model_fit.mle_retvals)
@@ -607,7 +607,7 @@ def ParEstIterd(data,p,q,one_sided,pt,f,I):
             y = data
         model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
         model.initialize_approximate_diffuse()
-        model_fit = model.fit(method_kwargs={'maxiter': 1000})
+        model_fit = model.fit(method_kwargs={'maxiter': 2000})
         #print('**************************************************************')
         #print(model_fit.mle_retvals)
         #print('**************************************************************')
@@ -623,7 +623,7 @@ def ParEstIterd(data,p,q,one_sided,pt,f,I):
         y = data
     model = ARIMA(y,order = (p,0,q),enforce_stationarity=True)
     model.initialize_approximate_diffuse()
-    model_fit = model.fit(method_kwargs={'maxiter': 1000})
+    model_fit = model.fit(method_kwargs={'maxiter': 2000})
     #print('**************************************************************')
     #print(model_fit.mle_retvals)
     #print('**************************************************************')
