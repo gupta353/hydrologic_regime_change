@@ -125,7 +125,8 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma):
         fid.write(formatspec %tuple(write_975_data[ind,:]))
     fid.close()
 
-    # write residual data
+    
+    # write means of the constant terms
     # header string
     numWindows = residuals.shape[1]
     header_string = []
@@ -134,21 +135,23 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma):
     header_string = '\t'.join(header_string)
     header_string = header_string + '\n'
 
+    formatspec = '\t'.join(['%f']*numWindows) + '\n'
+
+    sfname = 'constant_terms.txt'
+    filename = save_dir + '/' + sfname
+    fid = open(filename,'w')
+    fid.write(header_string)
+    fid.write(formatspec %tuple(constant_terms))
+    fid.close()
+
+    # write residual data
     sfname = 'residuals.txt'
     filename = save_dir + '/' + sfname
     fid = open(filename,'w')
     fid.write(header_string)
     for wind in range(0,len(residuals)):
         tmp = tuple(residuals[wind,:])
-        fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n' %tmp)
-    fid.close()
-
-    # write means of the constant terms
-    sfname = 'constant_terms.txt'
-    filename = save_dir + '/' + sfname
-    fid = open(filename,'w')
-    fid.write(header_string)
-    fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n' %tuple(constant_terms))
+        fid.write(formatspec %tmp)
     fid.close()
 
     return None
@@ -281,6 +284,8 @@ def autocorrText(acfs,qstats,pvalues,save_dir):
     header_string = '\t'.join(header_string)
     header_string = header_string + '\n'
 
+    formatspec = '\t'.join(['%f']*numWindows) + '\n'
+
     # write acf data
     sname = 'autocorrelations_means.txt'
     filename = save_dir + '/' + sname
@@ -288,7 +293,7 @@ def autocorrText(acfs,qstats,pvalues,save_dir):
     fid.write(header_string)
     for wind in range(0,acfs.shape[0]):
         acf_tmp = tuple(acfs[wind,:])
-        fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n'%acf_tmp)
+        fid.write(formatspec %acf_tmp)
     fid.close()
 
     # write qstat data
@@ -299,7 +304,7 @@ def autocorrText(acfs,qstats,pvalues,save_dir):
     fid.write(header_string)
     for wind in range(0,qstats.shape[0]):
         qstat_tmp = tuple(qstats[wind,:])
-        fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n'%qstat_tmp)
+        fid.write(formatspec %qstat_tmp)
     fid.close()
 
     # write pvalues of qstats
@@ -310,5 +315,5 @@ def autocorrText(acfs,qstats,pvalues,save_dir):
     fid.write(header_string)
     for wind in range(0,pvalues.shape[0]):
         pvalue_tmp = tuple(pvalues[wind,:])
-        fid.write('%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n'%pvalue_tmp)
+        fid.write(formatspec %pvalue_tmp)
     fid.close()
