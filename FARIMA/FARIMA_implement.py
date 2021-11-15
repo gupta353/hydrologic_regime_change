@@ -12,7 +12,13 @@ import plotFARIMA
 
 direc = 'D:/Research/non_staitionarity/data/CAMELS_GLEAMS_combined_data'
  
-listFile = os.listdir(direc + '/complete_watersheds')
+listFile = os.listdir(direc + '/complete_watersheds_4')
+
+
+""" listFile = listFile[0:300]
+completed_files = os.listdir('D:/Research/non_staitionarity/codes/results/FARIMA_results')
+completed_files = [completed_files[i]+'_GLEAMS_CAMELS_data.txt' for i in range(0,len(completed_files))]
+listFile =  list(set(listFile) - set(completed_files)) """
 
 # define time block size for Hurst-exponent calculation as equally spaced values on log-scale
 log_m_list = np.concatenate(([0.7,1],np.arange(1.06,2.45,0.03)))
@@ -29,6 +35,8 @@ q_max = 5     # maximum order of moving average polynomial
 
 fs = 1        # sampling frequency for periodogram computation
 
+begin_year = 1983
+end_year = 2014
 #['02053800_GLEAMS_CAMELS_data.txt']
 #for fname in [listFile[0]]:
 
@@ -40,7 +48,7 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
 
     print(fname)
     #read streamflow data
-    filename = direc + '/complete_watersheds/' + fname
+    filename = direc + '/complete_watersheds_4/' + fname
     fid = open(filename,'r')
     data = fid.readlines()
     fid.close()
@@ -51,8 +59,8 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
         strm.append([date_tmp.toordinal(),float(data_tmp[9])*0.028])  # multiplicative factor converting cfs to cms
 
     # select data to use
-    begin_date = datetime.date(1980,10,1)
-    end_date = datetime.date(2014,9,30)
+    begin_date = datetime.date(begin_year,10,1)
+    end_date = datetime.date(end_year,9,30)
     begin_datenum = begin_date.toordinal()
     end_datenum = end_date.toordinal()
 
@@ -99,6 +107,7 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
         t_steps = range(0,wlen,365)
         result = FarimaModule.HexpoRS(data,m_list,t_steps)
         H_R_by_S = result[0]
+        plotFARIMA.plotR_by_S(result[4], result[5], H_R_by_S, result[1], save_dir,'H_R_by_S_' + str(window))
 
         # average H value
         H = (Hvar + H_R_by_S)/2 
@@ -170,20 +179,20 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma)
     results = [pool.apply(implement, args=(fname,p_max,q_max,m_list,wlen,mstep,fs)) for fname in listFile]
     pool.close() """
 
-""" if __name__ == '__main__':
+if __name__ == '__main__':
     # start 4 worker processes
     inputs = [(fname,p_max,q_max,m_list,wlen,mstep,fs) for fname in listFile]
-    inputs = inputs[0:50]
+    inputs = inputs
     with mp.Pool(processes=10) as pool:
       tic = time.time()
       results = pool.starmap(implement,inputs)
       toc = time.time()
     print(toc-tic)
-    pool.close() """
+    pool.close()
 
-fname = '01022500_GLEAMS_CAMELS_data.txt'
+""" fname = '03439000_GLEAMS_CAMELS_data.txt'
 #fname = listFile[0]
 tic = time.time()
 implement(fname,p_max,q_max,m_list,wlen,mstep,fs)
 toc = time.time()
-print(toc-tic)
+print(toc-tic) """
