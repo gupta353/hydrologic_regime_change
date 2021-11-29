@@ -59,10 +59,11 @@ plt.plot(f*2*np.pi,pxx_den)
 # theoretical values
 pxx_den_theory = 2*sigx2*(1 - a**2)/(1 - 2*a*np.cos(2*np.pi*f) + a**2)
 plt.plot(f*2*np.pi,pxx_den_theory)
-plt.show() """
-
+plt.show()
+"""
 # generation of AR(3) process data
-""" a1 = 0.25
+"""
+a1 = 0.25
 a2 = 0.20
 a3 = 0.40
 sigma = 1
@@ -74,22 +75,23 @@ for ind in range(2,N+2):
 
 plt.plot(data)
 plt.show()
-
+"""
 
 # FARIMA model
-p = 3                               # autoregressive order
-q = 3                               # moving-average order
-d = 0.0
-arparams = np.array([a1,a2,a3])    # autoregressive coefficients
-maparams = np.array([0.99,0.2,0.9])        # moving-average coefficients
+
+p = 4                               # autoregressive order
+q = 4                              # moving-average order
+d = 0.11
+arparams = np.array([3.0096,-3.76,2.39,-0.64])    # autoregressive coefficients
+maparams = np.array([-1.47,0.89,-0.069,-0.1151])        # moving-average coefficients
 ar = np.r_[1, -arparams]
 ma = np.r_[1, maparams]
-sigma = 1.0                         # varaince of white noise
-N = 10000                            # number of time-steps at which data will be generated
+sigma = 3.83                         # varaince of white noise
+N = 3650                            # number of time-steps at which data will be generated
 x = np.arange(1,N+1,1)
 
 pxx_den = []
-for iter in range(0,1000):
+for iter in range(0,100):
     data = sm.tsa.arma_generate_sample(ar,ma,N,sigma)
     #plt.plot(x,data)
 
@@ -108,7 +110,8 @@ for iter in range(0,1000):
 pxx_den = np.array(pxx_den)
 pxx_den = pxx_den.mean(axis = 0)
 
-plt.plot(f[1:],pxx_den[1:])
+plt.loglog(f[1:],pxx_den[1:])
+plt.show()
 
 # theoretical power spectral densityof FARIMA model 
 pxx_epsilon = sigma**2
@@ -137,11 +140,12 @@ shi_q = np.array(shi_q)
 pxx_den_theory = 2*(abs(1 - exp_neg_iota_omega))**(-2*d)*(abs(shi_q))**2*(abs(phi_p))**(-2)*pxx_epsilon
 #pxx_den_theory = (abs(1 - exp_neg_iota_omega))**(-2*d)*pxx_epsilon
 
-plt.plot(f[1:],pxx_den_theory[1:])
+plt.loglog(f[1:],pxx_den_theory[1:])
+plt.title('Theoretical FARIAM spectra')
 plt.show()
 
 plt.scatter(pxx_den[1:],pxx_den_theory[1:])
-plt.show() """
+plt.show()
 
 
 # Compute Whittle's approximate likelihood for different parameter values
