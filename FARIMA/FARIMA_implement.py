@@ -12,13 +12,30 @@ import plotFARIMA
 
 direc = 'D:/Research/non_staitionarity/data/CAMELS_GLEAMS_combined_data'
  
-listFile = os.listdir(direc + '/complete_watersheds_4')
+listFile = os.listdir(direc + '/complete_watersheds_8')
 
+#listFile = ['10172700_GLEAMS_CAMELS_data.txt','11237500_GLEAMS_CAMELS_data.txt','07180500_GLEAMS_CAMELS_data.txt']
 
 """ listFile = listFile[0:300]
 completed_files = os.listdir('D:/Research/non_staitionarity/codes/results/FARIMA_results')
 completed_files = [completed_files[i]+'_GLEAMS_CAMELS_data.txt' for i in range(0,len(completed_files))]
 listFile =  list(set(listFile) - set(completed_files)) """
+
+# read the basin list after autocorrelation validation
+
+fname = 'basin_list_significant_autocorr.txt'
+filename = direc + '/' + fname
+fid = open(filename,'r')
+basin_list_data = fid.readlines()
+fid.close()
+basin_list = []
+for basin in basin_list_data:
+    basin_tmp = basin.split()[0]
+    basin_tmp = basin_tmp + '_GLEAMS_CAMELS_data.txt'
+    if basin_tmp in listFile:
+        basin_list.append(basin_tmp)
+listFile = basin_list
+
 
 # define time block size for Hurst-exponent calculation as equally spaced values on log-scale
 log_m_list = np.concatenate(([0.7,1],np.arange(1.06,2.45,0.03)))
@@ -35,20 +52,20 @@ q_max = 5     # maximum order of moving average polynomial
 
 fs = 1        # sampling frequency for periodogram computation
 
-begin_year = 1983
-end_year = 2014
+begin_year = 1980
+end_year = 2010
 #['02053800_GLEAMS_CAMELS_data.txt']
 #for fname in [listFile[0]]:
 
 def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
 
     station_id = fname.split('_')[0]
-    save_dir = 'D:/Research/non_staitionarity/codes/results/FARIMA_results/' + station_id
+    save_dir = 'D:/Research/non_staitionarity/codes/results/FARIMA_results_reanalysis_after_autocorr/' + station_id
     os.mkdir(save_dir)
 
     print(fname)
     #read streamflow data
-    filename = direc + '/complete_watersheds_4/' + fname
+    filename = direc + '/complete_watersheds_8/' + fname
     fid = open(filename,'r')
     data = fid.readlines()
     fid.close()
@@ -72,8 +89,8 @@ def implement(fname,p_max,q_max,m_list,wlen,mstep,fs):
     datenums = strm[ind1[0]:ind2[0]+1,0]
 
     # identify seasonal component using lowess
-    frac_val = 0.02
-    it_val = 2
+    frac_val = 0.01
+    it_val = 1
     seasonal_comp = FarimaModule.seasonalCompLowess(strm_data,frac_val,it_val)
     seasonal_comp_daily_avg = FarimaModule.seasonalCompAvg(strm_data) # seasonal component computed by daily averaging method
 
@@ -180,7 +197,7 @@ station_id,save_dir,param_names_ar,param_names_ma,max_length_ar,max_length_ma)
     pool.close() """
 
 if __name__ == '__main__':
-    # start 4 worker processes
+    # start 10 worker processes
     inputs = [(fname,p_max,q_max,m_list,wlen,mstep,fs) for fname in listFile]
     inputs = inputs
     with mp.Pool(processes=10) as pool:
@@ -190,9 +207,11 @@ if __name__ == '__main__':
     print(toc-tic)
     pool.close()
 
-""" fname = '03439000_GLEAMS_CAMELS_data.txt'
+"""
+fname = '14138900_GLEAMS_CAMELS_data.txt'
 #fname = listFile[0]
 tic = time.time()
 implement(fname,p_max,q_max,m_list,wlen,mstep,fs)
 toc = time.time()
-print(toc-tic) """
+print(toc-tic)
+"""
