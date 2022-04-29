@@ -1,5 +1,5 @@
 """
-RF regression model for rain dominated watersheds only
+RF regression model for one watershed
 
 Author: Abhinav Gupta (Created: 19 Apr 2022)
 
@@ -29,7 +29,7 @@ def readDynamic(filename):
     return dyn
 ######################################################################################################
 # read all the rain-dominated watersheds data
-direc = 'D:/Research/non_staitionarity/data/RF_dynamic_data_1'
+direc = 'D:/Research/non_staitionarity/data/RF_dynamic_data_2'
 listFiles = os.listdir(direc)
 basins = []
 
@@ -50,15 +50,15 @@ for rind in range(1,len(data)):
  
 ########################################################################################
 # prepare data for RF regression
-direc_dynamic = 'D:/Research/non_staitionarity/data/RF_dynamic_data_1'
-direc_save = 'D:/Research/non_staitionarity/codes/results/RF_predictions_in_time_1'
+direc_dynamic = 'D:/Research/non_staitionarity/data/RF_dynamic_data_2'
+direc_save = 'D:/Research/non_staitionarity/codes/results/RF_predictions_in_time_2'
 
 # prepare training data
 train_data = []
-for basin in basins[558:]:
+for basin in basins[0:]:
 
     # read dynamic data
-    fname = basin + '_met_dynamic_1.txt'
+    fname = basin + '_met_dynamic_2.txt'
     filename = direc_dynamic + '/' + fname
     met_data = readDynamic(filename)
 
@@ -74,12 +74,12 @@ for basin in basins[558:]:
     train = np.array(met_data)
 
     # train set
-    ytrain = 24*3.6*0.02832*train[0:5475,1]/train[0:5475,198]
-    xtrain = train[0:5475,2:]
+    xtrain = train[0:5445,2:110]
+    ytrain = 24*3.6*0.02832*train[0:5445,1]/train[0:5445,120]
 
     # test set
-    xtest = train[5475:,2:]
-    ytest = 24*3.6*0.02832*train[5475:,1]/train[5475:,198]
+    xtest = train[5445:,2:110]
+    ytest = 24*3.6*0.02832*train[5445:,1]/train[5445:,120]
 
     # remove rows containing NaNs
     nanind = (np.isnan(xtest).any(axis=1))
