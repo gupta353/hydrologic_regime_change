@@ -94,9 +94,11 @@ for rind in range(1,len(data)):
 
 # prepare data for RF regression
 direc_dynamic = 'D:/Research/non_staitionarity/data/RF_dynamic_data_2'
-ind_begin = 0
-ind_mid1 = 3650
-ind_mid2 = 5445
+ind_train_1 = 5446
+ind_train_2 = 7271
+ind_val_1 = 3650
+ind_val_2 = 5446
+
 eps = 0.1 # to normalize MSE
 
 train_data = []
@@ -121,9 +123,9 @@ for basin in basin_list:
             met[wind] = met[wind] + static_data[ind][1:]
         met = np.array(met)
         
-        train_tmp = met[ind_begin:ind_mid1,:]
-        val_tmp = met[ind_mid1:ind_mid2,:]
-        test_tmp = met[ind_mid2:,:]
+        train_tmp = met[ind_train_1:ind_train_2,:]
+        val_tmp = met[ind_val_1:ind_val_2,:]
+        test_tmp = met[ind_train_2:,:]
 
         # compute standard deviation of streamflow in training set
         sd_data = np.array(train_tmp)[:,1]
@@ -338,7 +340,7 @@ for tind in range(len(test_data)):
     datenums_tmp = test_data_tmp[:,0]
     test_data_prep.append([datenums_tmp, ytest_tmp, xtest_tmp])
 
-# RF parameter tuning, model trainign and testing
+# RF parameter tuning, model training and testing
 n_estimators, max_features, max_depth, min_samples_leaf = RF_ParamTuning.RFRegParamTuningV(xtrain, ytrain, xval, yval)
 # max_features = 0.35
 # max_depth = 197
@@ -347,8 +349,8 @@ rgr = sklearn.ensemble.RandomForestRegressor(n_estimators = 200, min_samples_lea
 rgr.fit(xtrain, ytrain)
 
 # save model
-fname = 'model_saved_normalized'
-direc = 'D:/Research/non_staitionarity/codes/results/RF_all_watersheds'
+fname = 'model_saved__normalized_diff_timeperiod'
+direc = 'D:/Research/non_staitionarity/codes/results/RF_global'
 filename = direc + '/' + fname
 pickle.dump(rgr, open(filename, 'wb'))
 
@@ -364,8 +366,8 @@ for ind in range(0,len(test_data_prep)):
     NSE.append(computeNSE(test_data_prep[ind][1],test_data_prep[ind][3]))
 
 # save NSE values to a textfile
-sname = 'basin_NSE_sd_normalized.txt'
-save_direc = 'D:/Research/non_staitionarity/codes/results/RF_all_watersheds'
+sname = 'basin_NSE_sd_normalized_diff_timeperiod.txt'
+save_direc = 'D:/Research/non_staitionarity/codes/results/RF_global'
 filename  = save_direc + '/' + sname
 fid = open(filename, 'w')
 fid.write('BASIN\tNSE\tsd\n')
