@@ -94,10 +94,12 @@ for rind in range(1,len(data)):
 
 # prepare data for RF regression
 direc_dynamic = 'D:/Research/non_staitionarity/data/RF_dynamic_data_2'
-ind_train_1 = 5446
-ind_train_2 = 7271
+ind_train_1 = 0
+ind_train_2 = 1825
 ind_val_1 = 3650
-ind_val_2 = 5446
+ind_val_2 = 5445
+ind_test_1 = 1825
+ind_test_2 = 3650
 
 eps = 0.1 # to normalize MSE
 
@@ -125,7 +127,7 @@ for basin in basin_list:
         
         train_tmp = met[ind_train_1:ind_train_2,:]
         val_tmp = met[ind_val_1:ind_val_2,:]
-        test_tmp = met[ind_train_2:,:]
+        test_tmp = met[ind_test_1:ind_test_2,:]
 
         # compute standard deviation of streamflow in training set
         sd_data = np.array(train_tmp)[:,1]
@@ -341,15 +343,15 @@ for tind in range(len(test_data)):
     test_data_prep.append([datenums_tmp, ytest_tmp, xtest_tmp])
 
 # RF parameter tuning, model training and testing
-n_estimators, max_features, max_depth, min_samples_leaf = RF_ParamTuning.RFRegParamTuningV(xtrain, ytrain, xval, yval)
+# n_estimators, max_features, max_depth, min_samples_leaf = RF_ParamTuning.RFRegParamTuningV(xtrain, ytrain, xval, yval)
 # max_features = 0.35
 # max_depth = 197
 # min_samples_leaf = 4
-rgr = sklearn.ensemble.RandomForestRegressor(n_estimators = 200, min_samples_leaf  = min_samples_leaf, max_features = max_features, max_depth = max_depth, oob_score = True, n_jobs = -1, min_impurity_decrease = 0, ccp_alpha = 0)
+rgr = sklearn.ensemble.RandomForestRegressor(n_estimators = 200, min_samples_leaf  = 4, max_features = 0.35, max_depth = 197, oob_score = True, n_jobs = -1, min_impurity_decrease = 0, ccp_alpha = 0)
 rgr.fit(xtrain, ytrain)
 
 # save model
-fname = 'model_saved__normalized_diff_timeperiod'
+fname = 'model_saved__normalized_diff_timeperiod_1'
 direc = 'D:/Research/non_staitionarity/codes/results/RF_global'
 filename = direc + '/' + fname
 pickle.dump(rgr, open(filename, 'wb'))
@@ -366,7 +368,7 @@ for ind in range(0,len(test_data_prep)):
     NSE.append(computeNSE(test_data_prep[ind][1],test_data_prep[ind][3]))
 
 # save NSE values to a textfile
-sname = 'basin_NSE_sd_normalized_diff_timeperiod.txt'
+sname = 'basin_NSE_sd_normalized_diff_timeperiod_1.txt'
 save_direc = 'D:/Research/non_staitionarity/codes/results/RF_global'
 filename  = save_direc + '/' + sname
 fid = open(filename, 'w')
