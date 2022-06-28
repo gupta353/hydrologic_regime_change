@@ -247,6 +247,14 @@ val_datenum_2 = datetime.date(1989,9,30).toordinal()
 test_datenum_1 = datetime.date(1989,10,1).toordinal()
 test_datenum_2 = datetime.date(1999,9,30).toordinal()
 
+ind_train_1 = 0
+ind_train_2 = 3650
+ind_val_1 = 3650
+ind_val_2 = 5445
+ind_test_1 = 5445
+ind_test_2 = ''
+
+
 eps = 0.1 # to normalize MSE
 
 train_data = []
@@ -271,6 +279,8 @@ for basin in basin_list:
             met[wind] = met[wind] + static_data[ind][1:]
         met = np.array(met)
         
+        # if dates are specified for training, validation, and testing period
+        """
         ind_train_1 = np.nonzero(met[:,0] == train_datenum_1)
         ind_train_1 = ind_train_1[0][0]
         ind_train_2 = np.nonzero(met[:,0] == train_datenum_2)
@@ -283,10 +293,11 @@ for basin in basin_list:
         ind_test_1 = ind_test_1[0][0]
         ind_test_2 = np.nonzero(met[:,0] == test_datenum_2)
         ind_test_2 = ind_test_2[0][0]
+        """
 
-        train_tmp = met[ind_train_1:ind_train_2+1,:]
-        val_tmp = met[ind_val_1:ind_val_2+1,:]
-        test_tmp = met[ind_test_1:ind_test_2+1,:]
+        train_tmp = met[ind_train_1:ind_train_2,:]
+        val_tmp = met[ind_val_1:ind_val_2,:]
+        test_tmp = met[ind_test_1:,:]
 
         # compute standard deviation of streamflow in training set
         sd_data = np.array(train_tmp)[:,1]
@@ -339,7 +350,7 @@ val_dataloader  = DataLoader(val_dataset, batch_size = N, shuffle=True, drop_las
 ######################################################################################################
 # start model training (different models for different seeds)
 seeds = [i for i in range(8)]
-seeds = [0]
+#seeds = [0]
 save_subdir = 'model_normalized'
 test_obs_pred_seed = []
 for seed in seeds:
