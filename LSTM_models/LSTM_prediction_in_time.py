@@ -109,8 +109,7 @@ class LSTMModel(nn.Module):
 def train_mod(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
     model.train()
-    ynse_train = []
-    pred_train = []
+    tr_loss = 0
     for batch, (X, y) in enumerate(dataloader):
         X, y = X.to(device), y.to(device)
 
@@ -123,27 +122,24 @@ def train_mod(dataloader, model, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
 
-        if batch % 20 == 0:
-            loss, current = loss.item(), batch * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-
-    return model.state_dict()
+        tr_loss += loss.item()    
+        
+    tr_loss /= size
+    return tr_loss, model.state_dict()
 
 # define the module to validate the model
 def validate_mod(dataloader, model, loss_fn):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
-    test_loss, correct = 0, 0
+    test_loss = 0
     model.eval()
     with torch.no_grad():
         for X, y in dataloader:
             X, y = X.to(device), y.to(device)
             pred = model(X)
             test_loss += loss_fn(pred, y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
-    test_loss /= num_batches
-    correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    test_loss /= size
+    print(f"Avg loss: {test_loss:>8f} \n")
     return test_loss
 
 # define the module to test the model
@@ -151,7 +147,7 @@ def test_mod(dataloader, model, loss_fn):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
-    test_loss, correct = 0, 0
+    test_loss = 0
     sse = 0
     ynse = []
     pred_list = []
@@ -161,7 +157,6 @@ def test_mod(dataloader, model, loss_fn):
             pred = model(X)
             test_loss += loss_fn(pred, y).item()
             sse += torch.sum((pred - y)**2)
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
             ynse.append(y)
             pred_list.append(pred)
     ynse = torch.cat(ynse)
@@ -169,8 +164,7 @@ def test_mod(dataloader, model, loss_fn):
     sst = torch.sum((ynse - torch.mean(ynse))**2)
     nse = 1 - sse/sst
     test_loss /= num_batches
-    correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {nse.item():>8f} \n")
+    print(f"Avg loss: {nse.item():>8f} \n")
     return nse.item(), pred_list, ynse
 
 ####################################################################################################
@@ -180,11 +174,18 @@ def test_mod(dataloader, model, loss_fn):
 
 # prepare data for LSTM regression
 direc_dynamic = 'D:/Research/non_staitionarity/data/LSTM_dynamic_data'
-direc_save = 'D:/Research/non_staitionarity/codes/results/LSTM_prediction_in_time'
+direc_save = 'D:/Research/non_staitionarity/codes/results/LSTM_prediction_in_time_3'
+
+# specify training, validation, and tetsing period
+train_begin_datenum = datetime.date(1980, 10, 1).toordinal()
+train_end_datenum = datetime.date(1989, 9, 30).toordinal()
+vl_begin_datenum = datetime.date(1989, 10, 1).toordinal()
+vl_end_datenum = datetime.date(1994, 9, 30).toordinal()
+test_begin_datenum = datetime.date(2001, 10, 1).toordinal()
 
 # prepare training data
 train_data = []
-for basin in basins:
+for basin in basins[369:]:
 
     # read dynamic data
     fname = basin + '_met_dynamic.txt'
@@ -199,17 +200,33 @@ for basin in basins:
    
     train = np.array(met_data)
 
+    # trainign, validation, and testing indices
+    ind_begin_train = np.nonzero(train[:,0] == train_begin_datenum)
+    ind_begin_train = ind_begin_train[0]
+    if ind_begin_train.size == 0:
+        ind_begin_train = 0
+    else:
+        ind_begin_train = ind_begin_train[0]
+    ind_end_train = np.nonzero(train[:,0] == train_end_datenum)
+    ind_end_train = ind_end_train[0][0]
+    ind_begin_vl = np.nonzero(train[:,0] == vl_begin_datenum)
+    ind_begin_vl = ind_begin_vl[0][0]
+    ind_end_vl = np.nonzero(train[:,0] == vl_end_datenum)
+    ind_end_vl = ind_end_vl[0][0]
+    ind_begin_test = np.nonzero(train[:,0] == test_begin_datenum)
+    ind_begin_test = ind_begin_test[0][0]
+
     # train set
-    xtrain = train[0:3650,2:]
-    ytrain = 24*3.6*0.02832*train[0:3650,1]/area
+    xtrain = train[ind_begin_train:ind_end_train+1,2:]
+    ytrain = 24*3.6*0.02832*train[ind_begin_train:ind_end_train+1,1]/area
 
     # validation set
-    xval = train[3650:5445,2:]
-    yval = 24*3.6*0.02832*train[3650:5445,1]/area
+    xval = train[ind_begin_vl:ind_end_vl+1,2:]
+    yval = 24*3.6*0.02832*train[ind_begin_vl:ind_end_vl+1,1]/area
 
     # test set
-    xtest = train[5445:,2:]
-    ytest = 24*3.6*0.02832*train[5445:,1]/area
+    xtest = train[ind_begin_test::,2:]
+    ytest = 24*3.6*0.02832*train[ind_begin_test:,1]/area
 
     # remove rows containing NaNs from train data
     nanind = (np.isnan(xtrain).any(axis=1))
@@ -256,7 +273,7 @@ for basin in basins:
     
     g = torch.Generator()
     g.manual_seed(0)
-    test_dataloader = DataLoader(test_dataset, batch_size = test_dataset.__len__(), generator=g)
+    test_dataloader = DataLoader(test_dataset, batch_size = test_dataset.__len__(), shuffle = False)
 
     # Execute modeling for 8 random seeds 
     nse_ts_list = []
@@ -277,17 +294,19 @@ for basin in basins:
 
         # define loss and optimizer
         lossfn = nn.MSELoss()
-        optimizer = torch.optim.Adam(lstm.parameters(), lr = 10**(-2))
+        optimizer = torch.optim.Adam(lstm.parameters(), lr = 10**(-3))
 
         # fix the number of epochs and start model training
         epochs = 100
+        loss_tr_list = []
         loss_vl_list = []
         model_state = []
         for t in range(epochs):
             print(f"Epoch {t+1}\n-------------------------------")
-            state = train_mod(train_dataloader, lstm, lossfn, optimizer)
+            loss_tr, state = train_mod(train_dataloader, lstm, lossfn, optimizer)
             loss_vl = validate_mod(val_dataloader, lstm, lossfn)
             model_state.append(copy.deepcopy(state))
+            loss_tr_list.append(loss_tr)
             loss_vl_list.append(loss_vl)
         ind = np.nonzero(loss_vl_list == np.min(loss_vl_list))
         lstm.load_state_dict(model_state[ind[0][0]], strict = True)    
