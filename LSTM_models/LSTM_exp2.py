@@ -22,6 +22,7 @@ from torchvision.transforms import ToTensor
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
+save_subdir = 'model_exp2'      #########
 
 # function to read dynamic data
 def readDynamic(filename):
@@ -354,6 +355,18 @@ train_data_comb = np.concatenate(train_data)
 mean_X = np.mean(train_data_comb[:,2:-1], axis = 0)
 std_X = np.std(train_data_comb[:,2:-1], axis = 0)
 
+# write mean_x and std_X data to a textfile
+"""
+normalization_stat = [mean_X,std_X]
+direc = 'D:/Research/non_staitionarity/codes/results/LSTM_global/' + save_subdir
+filename  = direc + '/' + 'norm_stat.txt'
+fid = open(filename, 'w')
+fid.write('mean_X\tstd_X\n')
+for wind in range(0,len(mean_X)):
+    fid.write('%s\t%f\n'%(mean_X[wind], std_X[wind]))
+fid.close()
+"""
+
 # convert data to torch tensors
 train_ten = []
 for train_tmp in train_data:
@@ -382,7 +395,6 @@ val_dataloader  = DataLoader(val_dataset, batch_size = N, shuffle=True, drop_las
 # start model training (different models for different seeds)
 seeds = [i for i in range(8)]
 #seeds = [0]
-save_subdir = 'model_exp2'      #########
 test_obs_pred_seed = []
 for seed in seeds:
 
