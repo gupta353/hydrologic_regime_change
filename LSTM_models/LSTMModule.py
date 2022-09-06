@@ -45,8 +45,9 @@ def LSTMImplement(train_rel, val_rel, test_rel, batch_size, input_dim, hidden_di
         def __getitem__(self, idx):
             basin_ind, tind = self.index_map[idx]
             x1 = self.data[basin_ind][tind : tind+self.L, 2:-1]     # '-1' is used to exclude the SD of streamflow as predictor
-            x1 = torch.div(x1 - self.mx, self.sdx)                  # normalization of the variable
-            y1 = torch.div(self.data[basin_ind][tind+self.L-1 ,1], self.data[basin_ind][tind+self.L-1 , -1])
+            #x1 = torch.div(x1 - self.mx, self.sdx)                  # normalization of the variable
+            y1 = self.data[basin_ind][tind+self.L-1 ,1]
+            #y1 = torch.div(self.data[basin_ind][tind+self.L-1 ,1], self.data[basin_ind][tind+self.L-1 , -1])
             return x1, y1
 
     # define LSTM model class
@@ -76,13 +77,13 @@ def LSTMImplement(train_rel, val_rel, test_rel, batch_size, input_dim, hidden_di
     def train_mod(dataloader, model, loss_fn, optimizer):
         
         size = len(dataloader.dataset)
-        num_batches = len(dataloader)
+        #num_batches = len(dataloader)
 
         model.train()
         
         tr_loss  = 0
         for batch, (X, y) in enumerate(dataloader):
-            X, y = X.to(device), y.to(device)
+            X, y = X.cuda(), y.cuda()
 
             # Compute prediction error
             pred = model(X)
@@ -144,23 +145,33 @@ def LSTMImplement(train_rel, val_rel, test_rel, batch_size, input_dim, hidden_di
     mean_X = np.mean(train_data_comb[:,2:-1], axis = 0)
     std_X = np.std(train_data_comb[:,2:-1], axis = 0)
 
+    # replace zero standard deviation with 10^-10
+    ind = np.nonzero(std_X == 0)
+    ind = ind[0]
+    std_X[ind] = 10**-10
+    
     # convert data to torch tensors
     train_ten = []
     for train_tmp in train_rel:
+        train_tmp[:,2:-1] = (train_tmp[:,2:-1] - mean_X)/std_X
+        train_tmp[:,1] = train_tmp[:,1]/train_tmp[:,-1]
         train_ten.append(torch.from_numpy(train_tmp).float())
 
     val_ten = []
     for val_tmp in val_rel:
+        val_tmp[:,2:-1] = (val_tmp[:,2:-1] - mean_X)/std_X
+        val_tmp[:,1] = val_tmp[:,1]/val_tmp[:,-1]
         val_ten.append(torch.from_numpy(val_tmp).float())
 
     test_ten = []
     for test_tmp in test_rel:            #################
+        test_tmp[:,2:-1] = (test_tmp[:,2:-1] - mean_X)/std_X
+        test_tmp[:,1] = test_tmp[:,1]/test_tmp[:,-1]
         test_ten.append(torch.from_numpy(test_tmp).float())
 
     mean_X = torch.from_numpy(mean_X).float()
     std_X = torch.from_numpy(std_X).float()
-########################################################################################################################################################
-    
+######################################################################################################################################################## 
     # define dataloader
     train_dataset = CustomData(train_ten, 365, mean_X, std_X)
     train_dataloader  = DataLoader(train_dataset, batch_size = batch_size, shuffle=True, drop_last = True)
@@ -182,22 +193,23 @@ def LSTMImplement(train_rel, val_rel, test_rel, batch_size, input_dim, hidden_di
         lossfn = nn.MSELoss()
         optimizer = torch.optim.Adam(lstm.parameters(), lr = 10**(-3))
 
-        # fix the number of epochs and start model training
-        loss_tr_list = []
+        # start model training
+        #loss_tr_list = []
         loss_vl_list = []
         model_state = []
         for t in range(epochs):
             print(f"Epoch {t+1}\n-------------------------------")
             
-            loss_tr, state = train_mod(train_dataloader, lstm, lossfn, optimizer)
+            _, state = train_mod(train_dataloader, lstm, lossfn, optimizer)
             loss_vl = validate_mod(val_dataloader, lstm, lossfn)
         
-            model_state.append(copy.deepcopy(state))
-            loss_tr_list.append(loss_tr)
+            model_state.append(copy.deepcopy(state))      
+            #loss_tr_list.append(loss_tr)
             loss_vl_list.append(loss_vl)
         minind = np.nonzero(loss_vl_list == np.min(loss_vl_list))
         minind = minind[0][0]
-        lstm.load_state_dict(model_state[minind], strict = True)
+        lstm.load_state_dict(model_state[minind], strict = True)    
+        del model_state, loss_vl_list
         
         # save model
         fname = 'model_save_seed_' + str(seed) + '_num_' + str(numTrainSamps)
@@ -222,6 +234,8 @@ def LSTMImplement(train_rel, val_rel, test_rel, batch_size, input_dim, hidden_di
             test_obs_pred.append([yobs, ypred])
             ind += 1
         test_obs_pred_seed.append(test_obs_pred)
+
+        del lstm, lossfn, optimizer
 
     # compute average prediction obtained from different seeds
     obs_pred_avg  = []
