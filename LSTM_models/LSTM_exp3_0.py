@@ -1,9 +1,10 @@
 """
+For 'prediction in gauged basin' 
 
 This script creates several ML model for different clusters. For a given cluster, the watersheds closest
 to cluster mean are identified using Mahalanobis distance and an LSTM is trained using the idnetified
 watersheds. The number of similar watersheds used for calibration are varied succesively : {1, 2, 4, 8,
-16, 32, 64, 128, 256}.
+16, 32, 64, 90, 128}.
 
 Similirity between watersheds is identified using the climatic statistics only: rainfall related and temperature related
 
@@ -12,6 +13,7 @@ Author: Abhinav Gupta (Created: 5 July 2022)
 """
 import datetime
 import os
+import gc
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
@@ -184,7 +186,7 @@ SD_y_A = []
 test_data_A = []
 basins_used = []
 basins_used_A = []
-for basin in A_final:# + B:          ###########
+for basin in A_final + B:          ###########
 
     # read dynamic data
     fname = basin + '_met_dynamic.txt'
@@ -317,7 +319,7 @@ for col in range(cl_stat_tr.shape[1]):
 ############################################################################################################
 
 # choose cluster label for which models are to be created
-label = 0       ################
+label = 9       ################
 label_ind = [i for i in range(len(A_final_label)) if A_final_label[i]==label]           # index of watersheds with 'label' in 'A_final' 
 label_ind = np.array(label_ind)
 clus_basins = [A_final[i] for i in label_ind]                                           # basins contained in cluster
@@ -345,8 +347,9 @@ for ind in range(len(basins_used)):
         inf_ind.append(ind)
 
 # choose nearest basins in traning set and create LSTM models (the basins contained in the cluster are always chosen)
-#num_basins = [1, 2, 4, 8, 16, 32, 64, 128, 256]
-num_basins = [1]
+
+num_basins = [1, 2, 4, 8, 16, 32, 64, 90, 128]
+#num_basins = [90, 128]
 batch_size = 2**8
 input_dim = len(test_rel[0][0,2:-1])        ###################
 hidden_dim = 256
@@ -357,7 +360,8 @@ seeds = [i for i in range(8)]
 for num in num_basins:
 
     save_direc = 'D:/Research/non_staitionarity/codes/results/LSTM_global/' + save_subdir + '/' + str(label)
-    os.mkdir(save_direc)
+    if os.path.exists(save_direc) == False:
+        os.mkdir(save_direc)
 
     # indices of basins in train_data to be used for training
     dist_x = dist.copy()
@@ -365,11 +369,23 @@ for num in num_basins:
     idx = np.concatenate((idx, inf_ind), axis = 0)
 
     # extract relevant traning and validation data 
-    train_rel = [train_data[i] for i in idx]
-    val_rel = [val_data[i] for i in idx]
+    train_rel = [train_data[i].copy() for i in idx]
+    val_rel = [val_data[i].copy() for i in idx]
+    test_rel_X = [test_data_tmp.copy() for test_data_tmp in test_rel]
 
-    NSE_avg, NSEBS = LSTMModule.LSTMImplement(train_rel, val_rel, test_rel, batch_size, input_dim, hidden_dim, n_layers, output_dim, epochs, seeds, device, save_direc, num)
+    NSE_avg, NSEBS = LSTMModule.LSTMImplement(train_rel, val_rel, test_rel_X, batch_size, input_dim, hidden_dim, n_layers, output_dim, epochs, seeds, device, save_direc, num)
+    #mean_X, std_X = LSTMModule.LSTMImplement(train_rel, val_rel, test_rel_X, batch_size, input_dim, hidden_dim, n_layers, output_dim, epochs, seeds, device, save_direc, num)
 
+    # save mean_X and std_X
+    """
+    normalization_stat = [mean_X,std_X]
+    filename  = save_direc + '/' + 'norm_stat_clus_' + str(label) + '_numbasins_' + str(num) + '.txt'
+    fid = open(filename, 'w')
+    fid.write('mean_X\tstd_X\n')
+    for wind in range(0,len(mean_X)):
+        fid.write('%s\t%f\n'%(mean_X[wind], std_X[wind]))
+    fid.close()
+    """
     # save NSE values to a textfile
     filename  = save_direc + '/' + 'nse_avg_clus_' + str(label) + '_numbasins_' + str(num) + '.txt'
     fid = open(filename, 'w')
@@ -380,19 +396,27 @@ for num in num_basins:
 
     # save NSE BS values
     fname = 'nse_uncertainty_clus_' + str(label) + '_numbasins_' + str(num)
-    direc = 'D:/Research/non_staitionarity/codes/results/LSTM_global/' + save_subdir
-    filename = direc + '/' + fname
+    filename = save_direc + '/' + fname
     pickle.dump(NSEBS, open(filename, 'wb'))
 
+    gc.collect()
+    torch.cuda.empty_cache()
+    
 ###########################################################################################################################################################
 """
 if __name__ == '__main__':
-import cProfile, pstats, io
-pr = cProfile.Profile()
-pr.enable()
-main()
-pr.disable()
-stats = pstats.Stats(pr)
-stats.dump_stats('D:/Research/non_staitionarity/codes/results/LSTM_global/model_exp3_0/profile_data.prof')
-a = 1
+    import cProfile, pstats, io
+    pr = cProfile.Profile()
+    pr.enable()
+    main()
+    pr.disable()
+    stats = pstats.Stats(pr).strip_dirs().sort_stats('tottime')
+    stats.dump_stats('D:/Research/non_staitionarity/codes/results/LSTM_global/model_exp3_0/profile_data.prof')
+
+    # Save as textfile
+    result = io.StringIO()
+    stats = pstats.Stats(pr, stream = result).strip_dirs().sort_stats('tottime')
+    stats.print_stats()
+    with open('D:/Research/non_staitionarity/codes/results/LSTM_global/model_exp3_0/profile_data.txt', 'w+') as f:
+        f.write(result.getvalue())
 """
